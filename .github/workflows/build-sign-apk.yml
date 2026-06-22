@@ -38,9 +38,23 @@ jobs:
           yes | sdkmanager --licenses || true
           sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
-      # ====== STEP 5: Grant execute permission to Gradle wrapper ======
-      - name: Grant execute permission for gradlew
-        run: chmod +x ./gradlew
+      # ====== STEP 5: Install Gradle ======
+      - name: Install Gradle
+        run: |
+          # Install gradle via apt-get (simplest method)
+          apt-get update > /dev/null 2>&1
+          apt-get install -y gradle > /dev/null 2>&1 || {
+            # Fallback: Install Gradle manually if apt fails
+            echo "Installing Gradle 8.2.2 manually..."
+            mkdir -p /opt/gradle
+            cd /tmp
+            wget -q https://services.gradle.org/distributions/gradle-8.2.2-bin.zip
+            unzip -q gradle-8.2.2-bin.zip -d /opt/gradle
+            echo "/opt/gradle/gradle-8.2.2/bin" >> $GITHUB_PATH
+          }
+          
+          # Verify gradle installation
+          gradle --version
 
       # ====== STEP 6: Decode and setup signing keystore ======
       - name: Decode signing keystore from Base64
