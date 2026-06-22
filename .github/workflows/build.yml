@@ -29,23 +29,34 @@ jobs:
           yes | sdkmanager --licenses || true
           sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
-      - name: Decode signing keystore
-        run: |
-          echo "${{ secrets.SIGNING_STORE_FILE_BASE64 }}" | base64 --decode > "${RUNNER_TEMP}/release.keystore.jks"
+      # CRITICAL INJECTION 1: Manufacture the missing Gradle Wrapper on the fly
+      - name: Manufacture Gradle Wrapper
+        run: gradle wrapper --gradle-version 8.5
 
       - name: Grant execute permission for Gradle Wrapper
         run: chmod +x ./gradlew
 
+      # CRITICAL INJECTION 2: Bridge the template's Keystore location to our Gradle configuration
+      - name: Decode signing keystore
+        run: |
+          echo "${{ secrets.SIGNING_STORE_FILE_BASE64 }}" | base64 --decode > "${GITHUB_WORKSPACE}/keystore.jks"
+          cp "${GITHUB_WORKSPACE}/keystore.jks" "${RUNNER_TEMP}/release.keystore.jks"
+
+      # CRITICAL INJECTION 3: Align task name to standard assembleRelease and bridge secret variables
       - name: Build and sign release APK
         id: gradle_build
         continue-on-error: true
         env:
+          # Bridging the template's secret names to the exact variables our app/build.gradle.kts reads
+          KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          SIGNING_STORE_FILE: ${{ runner.temp }}/release.keystore.jks
+          SIGNING_STORE_FILE: ${{ github.workspace }}/keystore.jks
         run: |
-          ./gradlew :app:assembleFossRelease --no-daemon --stacktrace > build_log.txt 2>&1 || echo "GRADLE_FAILED=1" >> "$GITHUB_ENV"
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace > build_log.txt 2>&1 || echo "GRADLE_FAILED=1" >> "$GITHUB_ENV"
           tail -n 400 build_log.txt
 
       - name: Push build log to ci-logs branch (always, for debugging)
@@ -65,16 +76,18 @@ jobs:
         if: env.GRADLE_FAILED == '1'
         run: exit 1
 
+      # Aligned path from /foss/release/ to standard /release/
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: file-manager-foss-release-apk
-          path: app/build/outputs/apk/foss/release/*.apk
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
+      # Aligned APK finder path to match standard assembleRelease output directory
       - name: Push APK to release-apk branch (for direct retrieval)
         run: |
-          APK_PATH=$(find app/build/outputs/apk/foss/release -name "*.apk" | head -n 1)
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
           cp "$APK_PATH" "$RUNNER_TEMP/output.apk"
           git config user.email "ci-bot@example.com"
           git config user.name "CI Bot"
