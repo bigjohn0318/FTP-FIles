@@ -1,0 +1,64 @@
+[versions]
+# SDK Versions
+compileSDKVersion = "36"
+minimumSDK = "21"
+targetSDK = "36"
+javaVersion = "VERSION_17"
+kotlinJVMTarget = "17"
+
+# Gradle & Kotlin
+gradle = "8.2.2"
+kotlin = "1.9.22"
+agp = "8.2.2"
+
+# AndroidX Libraries
+androidx-core = "1.12.0"
+androidx-appcompat = "1.6.1"
+androidx-constraintlayout = "2.1.4"
+androidx-documentfile = "1.0.1"
+androidx-swiperefreshlayout = "1.1.0"
+
+# Material Design
+material = "1.11.0"
+
+# Detekt (Code Analysis)
+detekt = "1.23.0"
+
+# Third-party Libraries
+roottools = "5.0"
+rootshell = "1.6.8"
+gestureviews = "2.0.0"
+autofittextview = "0.2.1"
+zip4j = "2.11.5"
+ftpserver = "1.1.2"
+slf4j = "1.7.36"
+
+[plugins]
+android = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+
+[libraries]
+# AndroidX
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "androidx-appcompat" }
+androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "androidx-constraintlayout" }
+androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version.ref = "androidx-documentfile" }
+androidx-swiperefreshlayout = { group = "androidx.swiperefreshlayout", name = "swiperefreshlayout", version.ref = "androidx-swiperefreshlayout" }
+
+# Material Design
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+
+# Third-party
+roottools = { group = "com.stericson", name = "RootTools", version.ref = "roottools" }
+rootshell = { group = "com.stericson", name = "RootShell", version.ref = "rootshell" }
+gestureviews = { group = "com.alexvasilkov", name = "gesture-views", version.ref = "gestureviews" }
+autofittextview = { group = "me.grantland", name = "autofittextview", version.ref = "autofittextview" }
+zip4j = { group = "net.lingala.zip4j", name = "zip4j", version.ref = "zip4j" }
+ftpserver-core = { group = "org.apache.ftpserver", name = "ftpserver-core", version.ref = "ftpserver" }
+slf4j-nop = { group = "org.slf4j", name = "slf4j-nop", version.ref = "slf4j" }
+
+# Detekt
+compose-detekt = { group = "io.nlopez.compose", name = "detekt-compose", version = "0.2.0" }
+
+[bundles]
