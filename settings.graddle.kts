@@ -18,5 +18,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "FlastFTP"
+rootProject.name = "Files"
 include(":app")
