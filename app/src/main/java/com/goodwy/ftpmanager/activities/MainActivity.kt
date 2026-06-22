@@ -1,4 +1,4 @@
-package com.goodwy.filemanager.activities
+package com.goodwy.ftpmanager.activities
 
 import android.Manifest
 import android.annotation.SuppressLint
