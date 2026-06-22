@@ -72,7 +72,7 @@ jobs:
           SIGNING_STORE_FILE: ${{ runner.temp }}/signing/my-release-key.jks
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
         run: |
-          ./gradlew clean :app:assembleFossRelease \
+          gradle clean :app:assembleFossRelease \
             --no-daemon \
             --stacktrace \
             --info 2>&1 | tee build.log
