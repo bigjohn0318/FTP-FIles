@@ -1,0 +1,190 @@
+name: Build and Sign APK (FOSS Flavor)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Signed Release APK
+    runs-on: ubuntu-latest
+    
+    steps:
+      # ====== STEP 1: Checkout Repository ======
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ====== STEP 2: Setup Java/JDK ======
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      # ====== STEP 3: Setup Android SDK ======
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # ====== STEP 4: Install Android Build Tools ======
+      - name: Install Android SDK components
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      # ====== STEP 5: Grant execute permission to Gradle wrapper ======
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      # ====== STEP 6: Decode and setup signing keystore ======
+      - name: Decode signing keystore from Base64
+        env:
+          SIGNING_STORE_FILE_BASE64: ${{ secrets.SIGNING_STORE_FILE_BASE64 }}
+        run: |
+          mkdir -p "${{ runner.temp }}/signing"
+          echo "$SIGNING_STORE_FILE_BASE64" | base64 --decode > "${{ runner.temp }}/signing/my-release-key.jks"
+          echo "Keystore file decoded successfully"
+          ls -lh "${{ runner.temp }}/signing/my-release-key.jks"
+
+      # ====== STEP 7: Verify keystore integrity ======
+      - name: Verify keystore integrity
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+        run: |
+          keytool -list -v -keystore "${{ runner.temp }}/signing/my-release-key.jks" \
+            -storepass "$SIGNING_STORE_PASSWORD" -noprompt || {
+            echo "ERROR: Keystore verification failed. Check your keystore file and password."
+            exit 1
+          }
+
+      # ====== STEP 8: Build and sign release APK ======
+      - name: Build and sign release APK (FOSS flavor)
+        id: build
+        env:
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          SIGNING_STORE_FILE: ${{ runner.temp }}/signing/my-release-key.jks
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+        run: |
+          ./gradlew clean :app:assembleFossRelease \
+            --no-daemon \
+            --stacktrace \
+            --info 2>&1 | tee build.log
+          
+          # Check if APK was created
+          APK_PATH=$(find app/build/outputs/apk/foss/release -name "*.apk" -type f 2>/dev/null | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: APK not found in expected location"
+            echo "=== Last 100 lines of build log ==="
+            tail -100 build.log
+            exit 1
+          fi
+          
+          echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
+          echo "Build successful! APK: $APK_PATH"
+          ls -lh "$APK_PATH"
+
+      # ====== STEP 9: Verify APK signature ======
+      - name: Verify APK signature
+        run: |
+          if [ ! -f "${{ env.APK_PATH }}" ]; then
+            echo "ERROR: APK file not found at ${{ env.APK_PATH }}"
+            exit 1
+          fi
+          
+          echo "Verifying APK signature..."
+          jarsigner -verify -verbose "${{ env.APK_PATH }}" || {
+            echo "ERROR: APK signature verification failed"
+            exit 1
+          }
+          echo "✓ APK signature verified successfully"
+
+      # ====== STEP 10: Extract APK information ======
+      - name: Extract APK information
+        run: |
+          APK_FILE=$(basename "${{ env.APK_PATH }}")
+          APK_SIZE=$(du -h "${{ env.APK_PATH }}" | cut -f1)
+          
+          echo "APK_FILE=$APK_FILE" >> $GITHUB_ENV
+          echo "APK_SIZE=$APK_SIZE" >> $GITHUB_ENV
+          echo ""
+          echo "=== APK Build Information ==="
+          echo "File: $APK_FILE"
+          echo "Size: $APK_SIZE"
+          echo "Location: ${{ env.APK_PATH }}"
+          echo "Build Time: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          echo "Git Commit: $(git rev-parse --short HEAD)"
+          echo "Git Branch: $(git rev-parse --abbrev-ref HEAD)"
+
+      # ====== STEP 11: Upload APK as artifact ======
+      - name: Upload signed APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ftp-file-manager-signed-apk
+          path: ${{ env.APK_PATH }}
+          retention-days: 90
+          if-no-files-found: error
+          compression-level: 0
+
+      # ====== STEP 12: Upload build log as artifact ======
+      - name: Upload build log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 30
+
+      # ====== STEP 13: Print summary ======
+      - name: Print build summary
+        if: success()
+        run: |
+          echo ""
+          echo "╔════════════════════════════════════════╗"
+          echo "║   ✓ BUILD AND SIGN SUCCESSFUL!         ║"
+          echo "╚════════════════════════════════════════╝"
+          echo ""
+          echo "📦 APK Details:"
+          echo "  • File: ${{ env.APK_FILE }}"
+          echo "  • Size: ${{ env.APK_SIZE }}"
+          echo "  • Flavor: FOSS"
+          echo "  • Signed: YES ✓"
+          echo "  • Location: app/build/outputs/apk/foss/release/"
+          echo ""
+          echo "📍 Download the APK:"
+          echo "  • Go to Actions → Latest workflow run → Artifacts"
+          echo "  • Download: ftp-file-manager-signed-apk"
+          echo ""
+          echo "🔍 Verification:"
+          echo "  • Signature verified ✓"
+          echo "  • Build completed at: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          echo ""
+
+      # ====== STEP 14: Failure diagnostics ======
+      - name: Failure diagnostics
+        if: failure()
+        run: |
+          echo "╔════════════════════════════════════════╗"
+          echo "║   ✗ BUILD FAILED - DIAGNOSTICS         ║"
+          echo "╚════════════════════════════════════════╝"
+          echo ""
+          echo "📋 Last 150 lines of build log:"
+          echo "=================================================="
+          tail -150 build.log || echo "Build log not found"
+          echo ""
+          echo "📂 Build outputs directory structure:"
+          find app/build/outputs -type d 2>/dev/null | head -20 || echo "No build outputs found"
+          echo ""
+          echo "🔧 Troubleshooting tips:"
+          echo "  1. Check if signing secrets are configured correctly in GitHub"
+          echo "  2. Verify keystore file is valid (base64 encoded)"
+          echo "  3. Ensure gradle.properties and libs.versions.toml are in place"
+          echo "  4. Check JDK 17 compatibility"
+          echo "  5. Review build.log artifact for detailed error messages"
+          echo ""
