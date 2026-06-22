@@ -55,9 +55,9 @@ jobs:
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           SIGNING_STORE_FILE: ${{ runner.temp }}/release.keystore.jks
-        run: |
-          ./gradlew :app:assembleRelease --no-daemon --stacktrace > build_log.txt 2>&1 || echo "GRADLE_FAILED=1" >> "$GITHUB_ENV"
-          tail -n 400 build_log.txt
+       run: |
+         ./gradlew :app:assembleRelease --no-daemon --stacktrace > build_log.txt 2>&1 || echo "GRADLE_FAILED=1" >> "$GITHUB_ENV"
+         if [ -f build_log.txt ]; then tail -n 400 build_log.txt; else echo "No build log found"; fi
 
       - name: Push build log to ci-logs branch (always, for debugging)
         if: always()
@@ -67,7 +67,7 @@ jobs:
           git checkout --orphan ci-logs-tmp
           git rm -rf --cached . > /dev/null 2>&1 || true
           mkdir -p ci-logs
-          cp build_log.txt "ci-logs/build_log_${GITHUB_RUN_ID}.txt"
+          if [ -f build_log.txt ]; then cp build_log.txt "ci-logs/build_log_${GITHUB_RUN_ID}.txt"; else echo "Build log not found"; fi
           git add "ci-logs/build_log_${GITHUB_RUN_ID}.txt"
           git commit -m "ci log for run ${GITHUB_RUN_ID} [skip ci]"
           git push origin ci-logs-tmp:ci-logs --force
