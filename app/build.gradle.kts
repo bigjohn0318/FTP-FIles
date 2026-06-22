@@ -163,6 +163,8 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation 'com.stericson:RootTools:5.0' 
+    // If not already bundled in commons
 
     // The FTP Engine (Ultra lightweight pure Java implementation)
     implementation("org.apache.ftpserver:ftpserver-core:1.1.2")
