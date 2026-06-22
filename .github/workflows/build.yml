@@ -29,23 +29,34 @@ jobs:
           yes | sdkmanager --licenses || true
           sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
+      # --- SCENARIO A INJECTION: Forces Ubuntu to manufacture the missing Gradle Wrapper ---
+      - name: Manufacture Gradle Wrapper
+        run: gradle wrapper --gradle-version 8.5
+
       - name: Decode signing keystore
         run: |
           echo "${{ secrets.SIGNING_STORE_FILE_BASE64 }}" | base64 --decode > "${RUNNER_TEMP}/release.keystore.jks"
+          # Mirrored to workspace root to satisfy all potential Gradle config pathing rules
+          cp "${RUNNER_TEMP}/release.keystore.jks" "${GITHUB_WORKSPACE}/keystore.jks"
 
+      # Execution rights granted safely now that gradlew is fully materialized
       - name: Grant execute permission to gradlew
         run: chmod +x ./gradlew
 
+      # Task aligned to standard assembleRelease and secret names double-mapped
       - name: Build and sign release APK
         id: gradle_build
         continue-on-error: true
         env:
+          KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           SIGNING_STORE_FILE: ${{ runner.temp }}/release.keystore.jks
         run: |
-          ./gradlew :app:assembleFossRelease --no-daemon --stacktrace > build_log.txt 2>&1 || echo "GRADLE_FAILED=1" >> "$GITHUB_ENV"
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace > build_log.txt 2>&1 || echo "GRADLE_FAILED=1" >> "$GITHUB_ENV"
           tail -n 400 build_log.txt
 
       - name: Push build log to ci-logs branch (always, for debugging)
@@ -65,16 +76,18 @@ jobs:
         if: env.GRADLE_FAILED == '1'
         run: exit 1
 
+      # Output paths aligned to standard release directory
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: file-manager-foss-release-apk
-          path: app/build/outputs/apk/foss/release/*.apk
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
+      # Search path updated to successfully locate and commit the final monolith APK
       - name: Push APK to release-apk branch (for direct retrieval)
         run: |
-          APK_PATH=$(find app/build/outputs/apk/foss/release -name "*.apk" | head -n 1)
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
           cp "$APK_PATH" "$RUNNER_TEMP/output.apk"
           git config user.email "ci-bot@example.com"
           git config user.name "CI Bot"
